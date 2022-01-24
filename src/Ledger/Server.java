@@ -93,7 +93,7 @@ public class Server {
         }
         // not enough coins to consume
         if (coins_curr < coins) {
-            return new ArrayList<UTxO>();
+            return new ArrayList<>();
         }
         for (UTxO u : us) {
             this.UTxOs.remove(u);
@@ -142,5 +142,68 @@ public class Server {
             }
         }
         return transactions;
+    }
+
+    // used when coins value is unknown
+    public long getCoinsUTxO(UTxO u){
+        Server server = getServerResponsibleFor(u.address);
+        return server.getCoinsTransfer(u.transaction_id, u.address);
+    }
+
+    public long getCoinsTransfer(long128 transaction_id, long128 address){
+        for (Transaction transaction : transactions){
+            if (transaction.id.equals(transaction_id)){
+                for (Transfer transfer : transaction.outputs){
+                    if (transfer.address.equals(address)){
+                        return transfer.coins;
+                    }
+                }
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    public boolean submitTransaction(Transaction transaction){
+        long total_value = 0;
+        long128 address = transaction.getInputAddress();
+        for (UTxO u : transaction.inputs){
+            // only 1 address per transaction allowed
+            if (!u.address.equals(address)){
+                return false;
+            }
+            // UTxO must be present
+            if (!this.UTxOs.contains(u)){
+                return false;
+            }
+            // now, we need to manually find out coins for each UTxO (since we don't get that)
+            u.coins = getCoinsUTxO(u);
+            total_value += u.coins;
+        }
+        for (Transfer transfer : transaction.outputs){
+            total_value -= transfer.coins;
+        }
+        // outputs don't match inputs
+        if (total_value != 0){
+            return false;
+        }
+
+        // consume UTxOs
+        for (UTxO u : transaction.inputs){
+            this.UTxOs.remove(u);
+        }
+
+        long128 transaction_id = genTransactionID();
+
+        // transfer coins
+        transaction.id = transaction_id;
+        for (Transfer transfer : transaction.outputs) {
+            Server server = getServerResponsibleFor(transfer.address);
+            server.receiveTransfer(transfer, transaction_id);
+        }
+
+        // add transaction
+        transactions.add(transaction);
+        return true;
     }
 }
