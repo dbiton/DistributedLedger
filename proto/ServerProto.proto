@@ -1,0 +1,31 @@
+syntax = "proto3";
+package proto;
+
+enum Ack {
+  YES = 0;
+  NO = 1;
+}
+
+message Coins {
+  uint64 amount = 1;
+}
+
+message TransferID{
+  uint64 transaction_id_low = 1;
+  uint64 transaction_id_high = 2;
+  uint64 address_low = 3;
+  uint64 address_high = 4;
+}
+
+message Transfer{
+  TransferID transfer_id = 1;
+  Coins coins = 2;
+}
+
+message Null{
+}
+
+service LedgerServerService {
+  rpc receiveTransfer(Transfer) returns (Null) {}
+  rpc getCoinsTransfer(TransferID) returns (Coins) {}
+}
